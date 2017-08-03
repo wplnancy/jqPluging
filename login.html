@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>二维码(下载页)统计</title>
+    <link rel="stylesheet" href="css/login.css"/>
+</head>
+<body>
+<div class="main_box">
+    <header>二维码(下载页)统计</header>
+    <div class="main">
+        <div class="item clearfix">
+            <div class="item_left">
+                时间：
+            </div>
+            <div class="item_right">
+                <input style="width:180px;background: #fefefe;border: 1px solid #bbb;font-size: 14px;color: #333;padding: 7px;border-radius: 3px;"
+                       type="text" class="date_picker date1">
+                ——
+                <input style="width:180px;background: #fefefe;border: 1px solid #bbb;font-size: 14px;color: #333;padding: 7px;border-radius: 3px;"
+                       type="text" class="date_picker date2">
+                <button class="data_btn">确定</button>
+            </div>
+        </div>
+        <table class="table_box">
+            <thead>
+            <tr>
+                <td>编号</td>
+                <td>时间</td>
+                <td>二维码扫描量</td>
+                <td>总下载量</td>
+                <td>android下载量</td>
+                <td>ios下载量</td>
+            </tr>
+            </thead>
+            <tbody class="table_data">
+            <tr>
+                <td colSpan="6">无数据</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="page-box">
+        <div id="page" class="pagination"></div>
+    </div>
+</div>
+
+</body>
+<script src="js/jquery.min.js"></script>
+<script src="js/jquery.date_input.pack.js"></script>
+<script src="js/jqPaginator.js"></script>
+
+<!--<script type="text/javascript" src="js/page.js"></script>-->
+<script>
+    $(function () {
+        // 工具函数
+        function formatTime(time) {
+            var reg = /^(\d{4})(\d{2})(\d{2})$/;
+            return time.replace(reg, function () {
+                return RegExp.$1 + '-' + RegExp.$2 + '-' + RegExp.$3;
+            })
+        }
+
+        // 初始化变量
+        var page = 1;
+        var pageCount = 20;
+        var startTime = '';
+        var endTime = '';
+        // 获取数据、渲染页面
+        function fetchData(page, pageCount, startTime, endTime) {
+
+            var reg = /^\d{4}-\d{1,2}-\d{1,2}$/;
+            var url = 'http://101.201.237.183:8080/StatisticsLog/index';
+            $.ajax({
+                type: 'GET',
+                url: url,
+                dataType: 'json',
+                data: {
+                    "page": page,
+                    "num": pageCount,
+                    "stime": startTime,
+                    "endtime": endTime
+                },
+                cache: false,
+                success: function (results) {
+                    //设置分页
+
+                    if (results.code === 200) {
+                        var totalPage = parseInt(results.data.pagetotal);
+
+                        // 处理没有数据的时候返回的页面总数是0的时候，就不能渲染页面了
+
+                        var tableDataStr = '';
+                        if (totalPage === 0) {
+                            try {
+                                $('#page').jqPaginator('destroy');//销毁组件
+                            } catch (e) {
+                            }
+
+                            //覆盖之前有数据的html
+                            tableDataStr += '<tr>'
+                            tableDataStr += '<td colSpan="6"> 无数据 </td>';
+                            tableDataStr += '</tr>';
+                            $('.table_data').html(tableDataStr)
+
+                        } else {
+                            $('#page').jqPaginator({
+                                totalPages: totalPage,
+                                visiblePages: 10,
+                                currentPage: page,
+                                onPageChange: function (curPage, type) {
+                                    if (type === 'change') {
+                                        page = curPage;
+                                        fetchData(page, pageCount, startTime, endTime)
+                                    } else if (type === 'init') {
+                                        page = 1;
+                                    }
+                                }
+                            });
+
+                            var data = results.data.list;
+
+                            if (data.length) {
+                                console.log("data", data);
+                                data.forEach(function (item) {
+                                    tableDataStr += '<tr>';
+                                    tableDataStr += '<td>' + item.id + '</td>';
+                                    tableDataStr += '<td>' + formatTime(item.createtime) + '</td>';
+                                    tableDataStr += '<td>' + item.scan + '</td>';
+                                    tableDataStr += '<td>' + item.download + '</td>';
+                                    tableDataStr += '<td>' + item.android + '</td>';
+                                    tableDataStr += '<td>' + item.ios + '</td>';
+                                    tableDataStr += '</tr>';
+                                });
+                                $('.table_data').html(tableDataStr);
+                            } else {
+                                tableDataStr += '<tr>'
+                                tableDataStr += '<td colSpan="6"> 无数据 </td>';
+                                tableDataStr += '</tr>';
+                                $('.table_data').html(tableDataStr)
+                            }
+                        }
+                    } else {
+                        alert("抱歉，服务器错误！");
+                    }
+
+
+                }
+            })
+        }
+
+        // 日期选择插件
+        $('.date_picker').date_input();
+
+        $(".data_btn").click(function () {
+            var dataValue1 = $(".date1").val();
+            var dataValue2 = $(".date2").val();
+
+            var reg = /^\d{4}-\d{1,2}-\d{1,2}$/;
+            if (!reg.test(dataValue1) || !reg.test(dataValue2)) {
+                alert("您输入的日期不合法(￣_,￣ )");
+                return;
+            }
+            startTime = dateTime(dataValue1);
+            endTime = dateTime(dataValue2);
+            if (endTime - startTime < 0 || $.trim(startTime) === '' || $.trim(endTime) === '') {
+                console.log(endTime, startTime);
+                alert("请选择正确格式日期(￣_,￣ )");
+                return;
+            } else {
+                console.log(startTime, endTime);
+                fetchData(page, pageCount, startTime, endTime)
+            }
+        });
+
+        function dateTime(date) {
+            var dateArr = date.split("-");
+            var dateCont = '';
+            var item;
+            for (var i = 0; i < dateArr.length; i++) {
+                item = dateArr[i];
+                item > 10 ? item = item : item = "0" + item;
+                dateCont += item;
+            }
+            return dateCont;
+        }
+
+    })
+</script>
+</html>
